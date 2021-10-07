@@ -18,7 +18,7 @@ entry_points:
         type: string
 
       output_description:
-        description: Dataset after basic cleaning step
+        description: Output artifact description
         type: string
 
       min_price:
