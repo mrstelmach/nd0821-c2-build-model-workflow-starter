@@ -4,8 +4,11 @@ Download from W&B the raw dataset and apply some basic data cleaning, exporting 
 """
 import argparse
 import logging
-import wandb
+import os
+import tempfile
 
+import pandas as pd
+import wandb
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
@@ -15,14 +18,32 @@ def go(args):
 
     run = wandb.init(job_type="basic_cleaning")
     run.config.update(args)
-
-    # Download input artifact. This will also log that this script is using this
-    # particular version of the artifact
-    # artifact_local_path = run.use_artifact(args.input_artifact).file()
-
-    ######################
-    # YOUR CODE HERE     #
-    ######################
+    
+    artifact_local_path = run.use_artifact(args.input_artifact).file()
+    
+    logger.info(f'Using {artifact_local_path} artifact to read with pandas')
+    df = pd.read_csv(artifact_local_path)
+    
+    logger.info('Dropping outliers outside the minimum and maximum price range')
+    idx = df['price'].between(args.min_price, args.max_price)
+    df = df[idx].copy()
+    
+    logger.info('Converting last_review to datetime type')
+    df['last_review'] = pd.to_datetime(df['last_review'])
+    
+    logger.info(f'Saving {args.output_artifact} artifact')
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = os.path.join(tmp_dir, "clean_sample.csv")
+        df.to_csv(file_path, index=False)
+        
+        artifact = wandb.Artifact(
+            name=args.output_artifact, 
+            type=args.output_type,
+            description=args.output_description
+        )
+        artifact.add_file(file_path)
+        run.log_artifact(artifact)
+        artifact.wait()
 
 
 if __name__ == "__main__":
@@ -54,7 +75,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_description", 
         type=str,
-        help="Dataset after basic cleaning step",
+        help="Output artifact description",
         required=True
     )
 
